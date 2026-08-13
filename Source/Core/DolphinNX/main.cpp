@@ -65,7 +65,9 @@ extern "C"
 }
 
 bool s_running = true;
-static bool s_chainload_to_tico = false;
+static bool s_chainload_to_gbastation = false;
+static std::string s_return_nro;
+static std::string s_session_token;
 static std::atomic<u64> s_presented_frames{0};
 
 static std::thread s_state_load_thread;
@@ -73,6 +75,7 @@ static std::atomic<bool> s_state_load_in_progress{false};
 
 static std::optional<std::string> GetLaunchRomPath(int argc, char* argv[])
 {
+  std::optional<std::string> rom_path;
   for (int i = 1; i < argc; ++i)
   {
     if (argv[i] == nullptr || argv[i][0] == '\0')
@@ -82,17 +85,30 @@ static std::optional<std::string> GetLaunchRomPath(int argc, char* argv[])
     if (arg == "--tico-rom")
     {
       if (i + 1 < argc && argv[i + 1] != nullptr && argv[i + 1][0] != '\0')
-        return std::string(argv[i + 1]);
-      return std::nullopt;
+        rom_path = std::string(argv[++i]);
+      continue;
     }
 
+    if (arg == "--return")
+    {
+      if (i + 1 < argc && argv[i + 1] != nullptr && argv[i + 1][0] != '\0')
+        s_return_nro = argv[++i];
+      continue;
+    }
+    if (arg == "--gbastation-session")
+    {
+      if (i + 1 < argc && argv[i + 1] != nullptr && argv[i + 1][0] != '\0')
+        s_session_token = argv[++i];
+      continue;
+    }
     if (arg.size() >= 2 && arg[0] == '-' && arg[1] == '-')
       continue;
 
-    return std::string(arg);
+    if (!rom_path)
+      rom_path = std::string(arg);
   }
 
-  return std::nullopt;
+  return rom_path;
 }
 
 static void LOG(const char* fmt, ...);
@@ -491,33 +507,39 @@ static void SetDefaultEnvIfUnset(const char* name, const char* value)
   LOG("ENV default %s=%s\n", name, value);
 }
 
-static void RequestChainloadBackToTico()
+static void RequestChainloadBackToGBAStation()
 {
-  if (!s_chainload_to_tico)
-    LOG("Return-to-Tico requested\n");
+  if (!s_chainload_to_gbastation)
+    LOG("Return-to-GBAStation requested\n");
 
-  s_chainload_to_tico = true;
+  s_chainload_to_gbastation = true;
   s_running = false;
 }
 
-static void ConfigureNextLoadForTico()
+static void ConfigureNextLoadForGBAStation()
 {
-  if (!s_chainload_to_tico)
+  // A --return argument is the complete authority to resume the launcher.
+  // Do this for every shutdown path (normal close and startup failure), while
+  // standalone hbmenu launches carry no --return and exit to Horizon normally.
+  if (s_return_nro.empty() || !envHasNextLoad())
     return;
 
-  const char* target_nro = "sdmc:/switch/tico/tico.nro";
+  const char* target_nro = s_return_nro.c_str();
 
   struct stat st;
   if (stat(target_nro, &st) == 0)
   {
-    char args[512];
-    std::snprintf(args, sizeof(args), "%s --resume", target_nro);
-    envSetNextLoad(target_nro, args);
-    LOG("Chainloading back to %s with args: %s\n", target_nro, args);
+    std::string args = s_return_nro;
+    if (!s_session_token.empty())
+      args += " --external-return " + s_session_token;
+    else
+      args += " --resume";
+    envSetNextLoad(target_nro, args.c_str());
+    LOG("Chainloading back to GBAStation at %s with args: %s\n", target_nro, args.c_str());
   }
   else
   {
-    LOG("Tico chainload target not found: %s\n", target_nro);
+    LOG("GBAStation chainload target not found: %s\n", target_nro);
   }
 
   if (std::remove("imgui.ini") == 0)
@@ -527,7 +549,7 @@ static void ConfigureNextLoadForTico()
 static int ExitSwitchFrontend(int exit_code)
 {
   LOG("ExitSwitchFrontend(%d)\n", exit_code);
-  ConfigureNextLoadForTico();
+  ConfigureNextLoadForGBAStation();
   RestoreSwitchPerformance();
 
   romfsExit();
@@ -540,32 +562,32 @@ static int ExitSwitchFrontend(int exit_code)
 // GC Sys installer
 //
 // Dolphin needs its "Sys" tree (GameSettings, Shaders, Resources, GC/Wii config,
-// ...) at sdmc:/tico/system/gc/Sys before File::SetSysDirectory. It is shipped in
+// ...) at sdmc:/GBAStation/gc/Sys before File::SetSysDirectory. It is shipped in
 // this NRO's RomFS (romfs:/Sys, from Data/Sys) and copied to the SD on first run.
 // A version marker based on the NRO package version keeps normal launches from
 // re-walking RomFS.
 // ---------------------------------------------------------------------------
 static constexpr const char* kGcSysSource = "romfs:/Sys";
-static constexpr const char* kGcSysDest = "sdmc:/tico/system/gc/Sys";
-static constexpr const char* kGcSysTempDest = "sdmc:/tico/system/gc/Sys.update";
-static constexpr const char* kGcSysMarker = "sdmc:/tico/system/gc/.sys_version";
+static constexpr const char* kGcSysDest = "sdmc:/GBAStation/gc/Sys";
+static constexpr const char* kGcSysTempDest = "sdmc:/GBAStation/gc/Sys.update";
+static constexpr const char* kGcSysMarker = "sdmc:/GBAStation/gc/.sys_version";
 #ifndef TICO_NRO_VERSION
 #define TICO_NRO_VERSION "0.0.0"
 #endif
 static constexpr const char* kGcSysVersion = TICO_NRO_VERSION;
 
-static constexpr const char* kGcSysSentinel = "sdmc:/tico/system/gc/Sys/ApprovedInis.json";
+static constexpr const char* kGcSysSentinel = "sdmc:/GBAStation/gc/Sys/ApprovedInis.json";
 static constexpr const char* kRootMesaDir = "sdmc:/.mesa";
 static constexpr const char* kRootMesaVersionMarker =
-    "sdmc:/tico/config/.migrations/root_mesa_core_version";
+    "sdmc:/GBAStation/config/.migrations/root_mesa_core_version";
 static constexpr const char* kDolphinProfileUpdateMarker =
-    "sdmc:/tico/config/.migrations/dolphin_profiles_0.0.8";
+    "sdmc:/GBAStation/config/.migrations/dolphin_profiles_0.0.8";
 static constexpr const char* kDolphinProfileHotfixSource =
     "romfs:/config/cores/profiles/dolphin";
 static constexpr const char* kDolphinProfileHotfixDest =
-    "sdmc:/tico/config/cores/profiles/dolphin";
+    "sdmc:/GBAStation/config/cores/profiles/dolphin";
 static constexpr const char* kControllerModesTipMarker =
-    "sdmc:/tico/config/.migrations/dolphin_controller_modes_tip_0.0.8";
+    "sdmc:/GBAStation/config/.migrations/dolphin_controller_modes_tip_0.0.8";
 
 static bool PathIsDir(const char* p)
 {
@@ -630,7 +652,7 @@ static void DrawGcSysProgress(GcSysInstallProgress& progress, bool force = false
     bar[i] = i < filled ? '#' : '.';
 
   std::printf("\x1b[2J\x1b[1;1H");
-  std::printf("tico Dolphin\n\n");
+  std::printf("GBAStation Dolphin\n\n");
   std::printf("Updating GameCube system files\n");
   std::printf("Version %s\n\n", kGcSysVersion);
   std::printf("%s\n\n", progress.phase);
@@ -864,11 +886,11 @@ static void EnsureDolphinProfilesUpdatedFor008()
     return;
   }
 
-  EnsureDir("sdmc:/tico");
-  EnsureDir("sdmc:/tico/config");
-  EnsureDir("sdmc:/tico/config/.migrations");
-  EnsureDir("sdmc:/tico/config/cores");
-  EnsureDir("sdmc:/tico/config/cores/profiles");
+  EnsureDir("sdmc:/GBAStation");
+  EnsureDir("sdmc:/GBAStation/config");
+  EnsureDir("sdmc:/GBAStation/config/.migrations");
+  EnsureDir("sdmc:/GBAStation/config/cores");
+  EnsureDir("sdmc:/GBAStation/config/cores/profiles");
   EnsureDir(kDolphinProfileHotfixDest);
 
   bool ok = true;
@@ -893,9 +915,9 @@ static void EnsureDolphinProfilesUpdatedFor008()
 
 static void MarkControllerModesTipShown()
 {
-  EnsureDir("sdmc:/tico");
-  EnsureDir("sdmc:/tico/config");
-  EnsureDir("sdmc:/tico/config/.migrations");
+  EnsureDir("sdmc:/GBAStation");
+  EnsureDir("sdmc:/GBAStation/config");
+  EnsureDir("sdmc:/GBAStation/config/.migrations");
 
   if (FILE* f = fopen(kControllerModesTipMarker, "wb"))
   {
@@ -946,9 +968,9 @@ static bool RootMesaVersionMarkerMatches()
 
 static void WriteRootMesaVersionMarker()
 {
-  EnsureDir("sdmc:/tico");
-  EnsureDir("sdmc:/tico/config");
-  EnsureDir("sdmc:/tico/config/.migrations");
+  EnsureDir("sdmc:/GBAStation");
+  EnsureDir("sdmc:/GBAStation/config");
+  EnsureDir("sdmc:/GBAStation/config/.migrations");
 
   if (FILE* f = fopen(kRootMesaVersionMarker, "wb"))
   {
@@ -986,7 +1008,7 @@ static void EnsureRootMesaCacheMatchesCoreVersion()
   WriteRootMesaVersionMarker();
 }
 
-// Copies romfs:/Sys -> sdmc:/tico/system/gc/Sys after a version bump. Safe to
+// Copies romfs:/Sys -> sdmc:/GBAStation/gc/Sys after a version bump. Safe to
 // call every boot: the marker check makes the common case a no-op.
 static bool EnsureGcSysInstalled()
 {
@@ -1006,9 +1028,8 @@ static bool EnsureGcSysInstalled()
   consoleInit(nullptr);
   DrawGcSysProgress(progress, true);
 
-  EnsureDir("sdmc:/tico");
-  EnsureDir("sdmc:/tico/system");
-  EnsureDir("sdmc:/tico/system/gc");
+  EnsureDir("sdmc:/GBAStation");
+  EnsureDir("sdmc:/GBAStation/gc");
 
   progress.phase = "Scanning bundled files";
   DrawGcSysProgress(progress, true);
@@ -1128,12 +1149,12 @@ int main(int argc, char* argv[])
     LOG("Overlay title: %s\n", display_title.empty() ? "(empty)" : display_title.c_str());
     DolphinNX::OverlayUI::SetGameTitle(display_title);
 
-    setenv("HOME", "sdmc:/tico/system/gc", 1);
+    setenv("HOME", "sdmc:/GBAStation", 1);
     SetDefaultEnvIfUnset("MESA_VK_WSI_PRESENT_MODE", "fifo");
     LOG("Environment set\n");
 
-    const std::string user_dir = "sdmc:/tico/system/gc/User";
-    const std::string sys_dir = "sdmc:/tico/system/gc/Sys";
+    const std::string user_dir = "sdmc:/GBAStation/dolphin/User";
+    const std::string sys_dir = "sdmc:/GBAStation/gc/Sys";
 
     // Seed Dolphin's Sys tree onto the SD from RomFS before anything reads it.
     if (!EnsureGcSysInstalled())
@@ -1157,6 +1178,17 @@ int main(int argc, char* argv[])
     File::SetSysDirectory(sys_dir);
     LOG("SetUserDirectory: %s\n", user_dir.c_str());
     UICommon::SetUserDirectory(user_dir);
+    // The shared User directory still contains Dolphin configuration, while
+    // game data is explicitly split by platform for GBAStation maintenance.
+    const bool is_gamecube = IsGameCubeDisc(boot_game_metadata);
+    File::SetUserPath(D_GCUSER_IDX, "sdmc:/GBAStation/gc/memcards/");
+    File::SetUserPath(D_WIIROOT_IDX, "sdmc:/GBAStation/wii/nand/");
+    File::SetUserPath(D_STATESAVES_IDX,
+                      is_gamecube ? "sdmc:/GBAStation/gc/states/" : "sdmc:/GBAStation/wii/states/");
+    File::SetUserPath(D_CACHE_IDX,
+                      is_gamecube ? "sdmc:/GBAStation/gc/cache/" : "sdmc:/GBAStation/wii/cache/");
+    File::SetUserPath(D_SHADERS_IDX,
+                      is_gamecube ? "sdmc:/GBAStation/gc/shaders/" : "sdmc:/GBAStation/wii/shaders/");
     LOG("CreateDirectories...\n");
     UICommon::CreateDirectories();
     LOG("UICommon::Init...\n");
@@ -1305,7 +1337,7 @@ int main(int argc, char* argv[])
         startup_abort_due_no_present = true;
         LOG("Startup watchdog fired: still at 0 presents after 12s (state=%d running=%d)\n",
             static_cast<int>(Core::GetState(system)), Core::IsRunning(system));
-        RequestChainloadBackToTico();
+        RequestChainloadBackToGBAStation();
       }
 
       if (overlay_ok)
@@ -1373,7 +1405,7 @@ int main(int argc, char* argv[])
             {
             case A::Exit:
               LOG("Overlay: Exit requested\n");
-              RequestChainloadBackToTico();
+              RequestChainloadBackToGBAStation();
               break;
             case A::Resume:
             case A::None:
@@ -1384,7 +1416,7 @@ int main(int argc, char* argv[])
         }
 
         if (DolphinNX::VulkanOverlay::ShouldExit())
-          RequestChainloadBackToTico();
+          RequestChainloadBackToGBAStation();
 
         if (overlay_just_closed && overlay_paused_core)
         {
@@ -1425,7 +1457,7 @@ int main(int argc, char* argv[])
           "deadlock\n");
       if (s_state_load_thread.joinable())
         s_state_load_thread.detach();
-      RequestChainloadBackToTico();
+      RequestChainloadBackToGBAStation();
       return 1;
     }
 

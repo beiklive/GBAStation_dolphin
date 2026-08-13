@@ -1,6 +1,6 @@
-project(dolphin-nx)
+project(GBAStationDolphinStub)
 
-set(TICO_NRO_VERSION "0.0.0" CACHE STRING "tico Dolphin NRO package version")
+set(TICO_NRO_VERSION "0.0.0" CACHE STRING "GBAStation Dolphin NRO package version")
 
 # Link directories MUST come before add_executable / target_link_libraries
 link_directories(
@@ -114,7 +114,7 @@ target_link_libraries(dolphin-nx PRIVATE
 
 # Linker flags for NRO-compatible ELF
 set_target_properties(dolphin-nx PROPERTIES
-  OUTPUT_NAME dolphin-nx
+  OUTPUT_NAME GBAStationDolphinStub
   LINK_FLAGS "-Wl,--gc-sections -Wl,--allow-multiple-definition"
 )
 

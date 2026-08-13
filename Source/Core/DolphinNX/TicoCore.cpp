@@ -40,7 +40,8 @@ namespace
 
 using OptionMap = std::map<std::string, std::string, std::less<>>;
 
-constexpr std::array<const char*, 6> kConfigPaths = {{
+constexpr std::array<const char*, 7> kConfigPaths = {{
+    "sdmc:/GBAStation/config/config.cfg",
     "sdmc:/tiicu/config/cores/dolphin.jsonc",
     "sdmc:/tico/config/cores/dolphin.jsonc",
     "tico/config/cores/dolphin.jsonc",
@@ -49,7 +50,7 @@ constexpr std::array<const char*, 6> kConfigPaths = {{
     "../assets/config/cores/dolphin.jsonc",
 }};
 
-constexpr std::string_view kDefaultWritableConfigPath = "sdmc:/tico/config/cores/dolphin.jsonc";
+constexpr std::string_view kDefaultWritableConfigPath = "sdmc:/GBAStation/config/config.cfg";
 
 constexpr std::array<std::string_view, 29> kFixedBaseOptions = {{
     "dolphin_cpu_core",
@@ -714,6 +715,48 @@ private:
       std::string content;
       if (!File::ReadFileToString(path, content))
         continue;
+
+      // GBAStation owns config.cfg. Only options explicitly scoped to
+      // core.dolphin.* are imported; the shared input mappings remain
+      // available separately to DolphinNX::Input.
+      const std::string_view config_path(path);
+      if (config_path.size() >= 10 && config_path.substr(config_path.size() - 10) == "config.cfg")
+      {
+        std::istringstream lines(content);
+        std::string line;
+        while (std::getline(lines, line))
+        {
+          const auto comment = line.find_first_of("#;");
+          if (comment != std::string::npos)
+            line.resize(comment);
+          const auto equal = line.find('=');
+          if (equal == std::string::npos)
+            continue;
+          const auto trim = [](std::string value) {
+            const auto first = value.find_first_not_of(" \t\r\n");
+            if (first == std::string::npos)
+              return std::string{};
+            const auto last = value.find_last_not_of(" \t\r\n");
+            return value.substr(first, last - first + 1);
+          };
+          const std::string key = trim(line.substr(0, equal));
+          if (key.rfind("core.dolphin.", 0) == 0)
+          {
+            const std::string option = key.substr(std::string("core.dolphin.").size());
+            if (!option.empty())
+              m_options[option] = trim(line.substr(equal + 1));
+          }
+          else if (key.rfind("dolphin.handle.", 0) == 0)
+          {
+            const std::string suffix = key.substr(std::string("dolphin.handle.").size());
+            if (!suffix.empty())
+              m_options["gbastation_dolphin_" + suffix] = trim(line.substr(equal + 1));
+          }
+        }
+        m_loaded_path = path;
+        m_save_path = path;
+        break;
+      }
 
       const std::string stripped = StripJsonComments(content);
       picojson::value root;

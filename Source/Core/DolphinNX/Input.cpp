@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cctype>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
@@ -62,6 +63,36 @@ static constexpr std::array<HidNpadIdType, MAX_SWITCH_PLAYERS> s_player_npad_ids
 static PadState s_pads[MAX_SWITCH_PLAYERS] = {};
 static bool s_hid_initialized = false;
 static bool s_pad_initialized = false;
+
+static u64 ParseGBAStationButton(std::string value, u64 fallback)
+{
+  std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+    return static_cast<char>(std::toupper(c));
+  });
+  if (value == "PAD_A") return HidNpadButton_A;
+  if (value == "PAD_B") return HidNpadButton_B;
+  if (value == "PAD_X") return HidNpadButton_X;
+  if (value == "PAD_Y") return HidNpadButton_Y;
+  if (value == "PAD_LB") return HidNpadButton_L;
+  if (value == "PAD_RB") return HidNpadButton_R;
+  if (value == "PAD_LT") return HidNpadButton_ZL;
+  if (value == "PAD_RT") return HidNpadButton_ZR;
+  if (value == "PAD_START") return HidNpadButton_Plus;
+  if (value == "PAD_BACK") return HidNpadButton_Minus;
+  if (value == "PAD_UP") return HidNpadButton_Up;
+  if (value == "PAD_DOWN") return HidNpadButton_Down;
+  if (value == "PAD_LEFT") return HidNpadButton_Left;
+  if (value == "PAD_RIGHT") return HidNpadButton_Right;
+  if (value == "PAD_LSB") return HidNpadButton_StickL;
+  if (value == "PAD_RSB") return HidNpadButton_StickR;
+  return fallback;
+}
+
+static u64 GBAStationButton(const char* suffix, u64 fallback)
+{
+  return ParseGBAStationButton(TicoCore::GetConfigValue(std::string("gbastation_dolphin_") + suffix, ""),
+                               fallback);
+}
 
 static constexpr double kTouchscreenWidth = 1280.0;
 static constexpr double kTouchscreenHeight = 720.0;
@@ -192,8 +223,8 @@ static void LoadControllerConfig()
     s_wii_controller_states[player].mode =
         config.wiimote_enabled ?
             ParseWiiControllerMode(
-                TicoCore::GetConfigValue("dolphin_wiimote" + n + "_mode", "nunchuk"),
-                WiiControllerMode::WiimoteNunchuk) :
+                TicoCore::GetConfigValue("dolphin_wiimote" + n + "_mode", "classic"),
+                WiiControllerMode::WiimoteClassic) :
             WiiControllerMode::GameCube;
 
     INFO_LOG_FMT(COMMON,
@@ -777,20 +808,20 @@ private:
 public:
   Device(unsigned port) : m_port(port)
   {
-    AddInput(new Button(m_port, HidNpadButton_A, "A"));
-    AddInput(new Button(m_port, HidNpadButton_B, "B"));
-    AddInput(new Button(m_port, HidNpadButton_X, "X"));
-    AddInput(new Button(m_port, HidNpadButton_Y, "Y"));
-    AddInput(new Button(m_port, HidNpadButton_L, "L"));
-    AddInput(new Button(m_port, HidNpadButton_R, "R"));
-    AddInput(new Button(m_port, HidNpadButton_ZL, "Z"));
-    AddInput(new Button(m_port, HidNpadButton_ZR, "R2"));
-    AddInput(new Button(m_port, HidNpadButton_Plus, "Start"));
-    AddInput(new Button(m_port, HidNpadButton_Minus, "Select"));
-    AddInput(new Button(m_port, HidNpadButton_Up, "Up"));
-    AddInput(new Button(m_port, HidNpadButton_Down, "Down"));
-    AddInput(new Button(m_port, HidNpadButton_Left, "Left"));
-    AddInput(new Button(m_port, HidNpadButton_Right, "Right"));
+    AddInput(new Button(m_port, GBAStationButton("a", HidNpadButton_A), "A"));
+    AddInput(new Button(m_port, GBAStationButton("b", HidNpadButton_B), "B"));
+    AddInput(new Button(m_port, GBAStationButton("x", HidNpadButton_X), "X"));
+    AddInput(new Button(m_port, GBAStationButton("y", HidNpadButton_Y), "Y"));
+    AddInput(new Button(m_port, GBAStationButton("l", HidNpadButton_L), "L"));
+    AddInput(new Button(m_port, GBAStationButton("r", HidNpadButton_R), "R"));
+    AddInput(new Button(m_port, GBAStationButton("l2", HidNpadButton_ZL), "Z"));
+    AddInput(new Button(m_port, GBAStationButton("r2", HidNpadButton_ZR), "R2"));
+    AddInput(new Button(m_port, GBAStationButton("start", HidNpadButton_Plus), "Start"));
+    AddInput(new Button(m_port, GBAStationButton("select", HidNpadButton_Minus), "Select"));
+    AddInput(new Button(m_port, GBAStationButton("up", HidNpadButton_Up), "Up"));
+    AddInput(new Button(m_port, GBAStationButton("down", HidNpadButton_Down), "Down"));
+    AddInput(new Button(m_port, GBAStationButton("left", HidNpadButton_Left), "Left"));
+    AddInput(new Button(m_port, GBAStationButton("right", HidNpadButton_Right), "Right"));
     AddInput(new Button(m_port, HidNpadButton_StickL, "L3"));
     AddInput(new Button(m_port, HidNpadButton_StickR, "R3"));
 

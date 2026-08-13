@@ -11,15 +11,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="${SCRIPT_DIR}/build_nx_standalone"
 ROMFS_DIR="${BUILD_DIR}/romfs"
 MESA_NVK_DIR="${MESA_NVK_DIR:-/nvk-build}"
-TICO_NRO_VERSION="${TICO_NRO_VERSION:-0.0.8}"
-TICO_NX_DIR="${TICO_NX_DIR:-${SCRIPT_DIR}/../../../tico-nx}"
+TICO_NRO_VERSION="${TICO_NRO_VERSION:-0.0.1}"
 
-echo "=== Dolphin NX Standalone Build (no libretro) ==="
+echo "=== GBAStation Dolphin Stub Build ==="
 echo "Source: ${SCRIPT_DIR}"
 echo "Build:  ${BUILD_DIR}"
 echo "NVK:    ${MESA_NVK_DIR}"
 echo "Version: ${TICO_NRO_VERSION}"
-echo "Tico NX assets: ${TICO_NX_DIR} (optional)"
 echo ""
 
 if [ ! -f "${DEVKITPRO}/portlibs/switch/lib/libSDL2.a" ]; then
@@ -65,23 +63,17 @@ rm -rf "${ROMFS_DIR}/fonts" "${ROMFS_DIR}/lang" "${ROMFS_DIR}/Sys" "${ROMFS_DIR}
 mkdir -p "${ROMFS_DIR}"
 cp -R "${SCRIPT_DIR}/Source/Core/DolphinNX/Assets/fonts" "${ROMFS_DIR}/"
 cp -R "${SCRIPT_DIR}/Source/Core/DolphinNX/Assets/lang" "${ROMFS_DIR}/"
-# Dolphin's Sys tree, seeded to sdmc:/tico/system/gc/Sys on first run (see main.cpp).
+# Dolphin's Sys tree, seeded to sdmc:/GBAStation/gc/Sys on first run (see main.cpp).
 cp -R "${SCRIPT_DIR}/Data/Sys" "${ROMFS_DIR}/"
 
 # Profile hotfix payload for 0.0.8. Dolphin normally reads profiles from
-# sdmc:/tico/config/cores/profiles/dolphin; these two files are force-reseeded
+# sdmc:/GBAStation/config/cores/profiles/dolphin; these two files are force-reseeded
 # once by Source/Core/DolphinNX/main.cpp so existing 0.0.7 installs receive the
 # horizontal Wii Remote Joy-Con mapping fix.
 BUNDLED_DOLPHIN_PROFILE_SRC="${SCRIPT_DIR}/Source/Core/DolphinNX/Assets/config/cores/profiles/dolphin"
-TICO_NX_DOLPHIN_PROFILE_SRC="${TICO_NX_DIR}/assets/config/cores/profiles/dolphin"
 DOLPHIN_PROFILE_SRC="${TICO_DOLPHIN_PROFILE_SRC:-}"
 if [ -z "${DOLPHIN_PROFILE_SRC}" ]; then
-  if [ -f "${TICO_NX_DOLPHIN_PROFILE_SRC}/handheld.json" ] && \
-     [ -f "${TICO_NX_DOLPHIN_PROFILE_SRC}/joycon_dual.json" ]; then
-    DOLPHIN_PROFILE_SRC="${TICO_NX_DOLPHIN_PROFILE_SRC}"
-  else
-    DOLPHIN_PROFILE_SRC="${BUNDLED_DOLPHIN_PROFILE_SRC}"
-  fi
+  DOLPHIN_PROFILE_SRC="${BUNDLED_DOLPHIN_PROFILE_SRC}"
 fi
 DOLPHIN_PROFILE_DST="${ROMFS_DIR}/config/cores/profiles/dolphin"
 if [ ! -f "${DOLPHIN_PROFILE_SRC}/handheld.json" ] || \
@@ -96,25 +88,25 @@ cp "${DOLPHIN_PROFILE_SRC}/handheld.json" "${DOLPHIN_PROFILE_DST}/"
 cp "${DOLPHIN_PROFILE_SRC}/joycon_dual.json" "${DOLPHIN_PROFILE_DST}/"
 
 nacptool --create \
-  "tico Dolphin" \
-  "ticoverse.com, dolphin-emu" \
+  "GBAStation Dolphin Stub" \
+  "GBAStation, dolphin-emu" \
   "${TICO_NRO_VERSION}" \
   "${BUILD_DIR}/dolphin.nacp"
 
-cp "${BUILD_DIR}/Binaries/dolphin-nx" "${BUILD_DIR}/Binaries/dolphin-nx.debug.elf"
-${DEVKITA64}/bin/aarch64-none-elf-strip --strip-all "${BUILD_DIR}/Binaries/dolphin-nx"
+cp "${BUILD_DIR}/Binaries/GBAStationDolphinStub" "${BUILD_DIR}/Binaries/GBAStationDolphinStub.debug.elf"
+${DEVKITA64}/bin/aarch64-none-elf-strip --strip-all "${BUILD_DIR}/Binaries/GBAStationDolphinStub"
 
 elf2nro \
-  "${BUILD_DIR}/Binaries/dolphin-nx" \
-  "${BUILD_DIR}/dolphin.nro" \
+  "${BUILD_DIR}/Binaries/GBAStationDolphinStub" \
+  "${BUILD_DIR}/GBAStationDolphinStub.nro" \
   --nacp="${BUILD_DIR}/dolphin.nacp" \
   --romfsdir="${ROMFS_DIR}"
 
 echo ""
 echo "=== Done ==="
-echo "Output: ${BUILD_DIR}/dolphin.nro"
+echo "Output: ${BUILD_DIR}/GBAStationDolphinStub.nro"
 echo ""
 echo "Deploy to Switch:"
-echo "  cp ${BUILD_DIR}/dolphin.nro /path/to/sd/switch/dolphin/"
+echo "  cp ${BUILD_DIR}/GBAStationDolphinStub.nro /path/to/sd/GBAStation/core/"
 echo ""
 echo "Launch from hbmenu with a ROM file to chainload."
