@@ -29,13 +29,17 @@ jobs:
       image: devkitpro/devkita64:latest
     env:
       HOME: /root
+      # switchVK is private.  Set SWITCHVK_TOKEN to a fine-grained PAT with
+      # read access to beiklive/switchVK; CORE_RELEASE_TOKEN is retained as a
+      # convenient shared fallback for existing release automation.
+      SWITCHVK_TOKEN: ${{ secrets.SWITCHVK_TOKEN || secrets.CORE_RELEASE_TOKEN || github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: Check out switchVK SDK build
-        run: git clone --depth 1 https://github.com/beiklive/switchVK.git ../switchVK
+        run: git clone --depth 1 "https://x-access-token:${SWITCHVK_TOKEN}@github.com/beiklive/switchVK.git" ../switchVK
 
       - uses: actions/cache@v4
         with:
