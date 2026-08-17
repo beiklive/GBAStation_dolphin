@@ -40,6 +40,11 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install core build tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends python3
+
       - name: Check out switchVK SDK build
         run: git clone --depth 1 "https://x-access-token:${SWITCHVK_TOKEN}@github.com/beiklive/switchVK.git" ../switchVK
 

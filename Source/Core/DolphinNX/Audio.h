@@ -5,8 +5,7 @@
 #pragma once
 
 #include <atomic>
-
-#include <SDL2/SDL.h>
+#include <switch.h>
 
 #include "AudioCommon/SoundStream.h"
 #include "Common/CommonTypes.h"
@@ -28,9 +27,13 @@ public:
   static bool IsValid() { return true; }
 
 private:
-  static void AudioCallback(void* userdata, u8* stream, int len);
+  static void AudioThread(void* userdata);
 
-  SDL_AudioDeviceID m_device = 0;
+  AudioDriver m_audio_driver{};
+  Thread m_audio_thread{};
+  u8* m_mem_pool = nullptr;
+  u32 m_buffer_frames = 1024;
+  std::atomic<bool> m_stop{false};
   std::atomic<bool> m_running{false};
 };
 

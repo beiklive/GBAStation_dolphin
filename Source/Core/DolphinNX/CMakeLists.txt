@@ -110,9 +110,8 @@ target_link_libraries(dolphin-nx PRIVATE
   -lz
 )
 
-# libnx + SDL2 (from devkitPro portlibs, NOT bundled) — full paths to avoid search issues
+# libnx provides the native audren audio backend used by the Switch frontend.
 target_link_libraries(dolphin-nx PRIVATE
-  ${DEVKITPRO}/portlibs/switch/lib/libSDL2.a
   ${DEVKITPRO}/libnx/lib/libnx.a
   m
 )
@@ -121,6 +120,15 @@ target_link_libraries(dolphin-nx PRIVATE
 set_target_properties(dolphin-nx PROPERTIES
   OUTPUT_NAME GBAStationDolphinStub
   LINK_FLAGS "-Wl,--gc-sections -Wl,--allow-multiple-definition"
+)
+
+# switchVK's libc shim supplies the wrapped implementations. The linker must
+# create the corresponding __real_* aliases for the shim to call through.
+target_link_options(dolphin-nx PRIVATE
+  "-Wl,--wrap=open"
+  "-Wl,--wrap=close"
+  "-Wl,--wrap=stat"
+  "-Wl,--wrap=lstat"
 )
 
 install(TARGETS dolphin-nx RUNTIME DESTINATION bin)

@@ -10,6 +10,7 @@ Source/Core/Common/scmrev.h
 /cmake-build-release
 /[Bb]uild*/
 /[Bb]inary*/
+/.build-tmp/
 /obj/
 # Ignore files output by Android cmake build
 /Source/Android/app/.cxx/

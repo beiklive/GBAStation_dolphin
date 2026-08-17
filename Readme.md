@@ -20,6 +20,24 @@ It adds:
 
 ----------
 
+## Local Switch build
+
+Build locally from an MSYS2 UCRT64 shell. Docker is only used by GitHub Actions.
+Install devkitPro's Switch toolchain, CMake, Make, Git and Python 3. A built
+switchVK SDK is also required; point `SWITCH_NVK_ROOT` at the directory that
+contains `include/vulkan/vulkan.h` and `lib/libvulkan.a`.
+
+```bash
+SWITCH_NVK_ROOT=/path/to/nvk-switch-26.1.4 ./build_local.sh -j "$(nproc)"
+```
+
+If `../switchVK/nvk-switch-*` or `../switchVK/.ci-build/nvk-switch-*` exists,
+the script discovers it automatically. The result is
+`build_nx_standalone/GBAStationDolphinStub.nro`; add `--clean` for a fresh
+build.
+
+----------
+
 ## Credits
 
 This port is built on top of the official Dolphin emulator project.

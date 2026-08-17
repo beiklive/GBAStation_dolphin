@@ -4,10 +4,23 @@ set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 JOBS="${JOBS:-$(nproc)}"
+BUILD_DIR="${BUILD_DIR:-$ROOT/build_nx_standalone}"
+TMPDIR="${TMPDIR:-$ROOT/.build-tmp}"
+PYTHON3="${PYTHON3:-}"
 CLEAN=0
 
 if [[ "$(uname -o 2>/dev/null || true)" == "Msys" ]]; then
   export PATH="/usr/bin:/bin:$PATH"
+  if ! command -v python3 >/dev/null 2>&1; then
+    for python_dir in /ucrt64/bin /mingw64/bin; do
+      [[ -x "$python_dir/python3.exe" ]] || continue
+      PYTHON3="$python_dir/python3.exe"
+      break
+    done
+  fi
+fi
+if [[ -z "$PYTHON3" ]]; then
+  PYTHON3=$(command -v python3 || true)
 fi
 
 usage() {
@@ -30,6 +43,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
+[[ -n "$PYTHON3" ]] || { echo "Missing Python 3 in MSYS2." >&2; exit 1; }
+PYTHON_BIN_DIR="$TMPDIR/python-bin"
+mkdir -p "$PYTHON_BIN_DIR"
+ln -sf "$PYTHON3" "$PYTHON_BIN_DIR/python3"
+# Do not prepend the whole UCRT Python directory: it also contains native
+# build tools, which make the MSYS CMake generator emit unusable drive paths.
+export PATH="$PYTHON_BIN_DIR:$PATH"
 if [[ -z "${SWITCH_NVK_ROOT:-}" ]]; then
   for candidate in "$ROOT/../switchVK"/nvk-switch-* "$ROOT/../switchVK/.ci-build"/nvk-switch-*; do
     [[ -f "$candidate/lib/libvulkan.a" ]] || continue
@@ -44,6 +64,11 @@ fi
 
 export MESA_NVK_DIR="$SWITCH_NVK_ROOT"
 export CMAKE_BUILD_PARALLEL_LEVEL="$JOBS"
+mkdir -p "$TMPDIR"
+# devkitA64's Windows-hosted GCC reads TMP/TEMP before TMPDIR.
+export TMPDIR
+export TMP="$TMPDIR"
+export TEMP="$TMPDIR"
 if [[ "$CLEAN" == 1 ]]; then
   exec bash "$ROOT/build_dolphin_standalone_nro.sh" clean
 fi
