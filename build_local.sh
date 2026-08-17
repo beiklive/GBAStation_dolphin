@@ -6,11 +6,15 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 JOBS="${JOBS:-$(nproc)}"
 CLEAN=0
 
+if [[ "$(uname -o 2>/dev/null || true)" == "Msys" ]]; then
+  export PATH="/usr/bin:/bin:$PATH"
+fi
+
 usage() {
   cat <<'EOF'
 Usage: ./build_local.sh [-j JOBS] [--clean]
 
-Requires MSYS2 UCRT64, devkitPro and a switchVK SDK. Set SWITCH_NVK_ROOT to
+Requires MSYS2, devkitPro and a switchVK SDK. Set SWITCH_NVK_ROOT to
 the SDK directory (containing include/vulkan/vulkan.h and lib/libvulkan.a),
 or place it under ../switchVK/nvk-switch-*.
 EOF
