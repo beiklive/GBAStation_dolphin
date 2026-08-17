@@ -56,28 +56,33 @@ target_include_directories(dolphin-nx PRIVATE
   "${DEVKITPRO}/portlibs/switch/include/SDL2"
 )
 
-# Mesa NVK include path (for vulkan headers if needed beyond bundled Externals)
+# Mesa NVK can be supplied either as an in-tree Mesa build or as the portable
+# switchVK SDK package (include/ + lib/libvulkan.a).  Supporting both keeps
+# local builds and CI on the same dependency contract.
 if(DEFINED MESA_NVK_DIR)
-  target_include_directories(dolphin-nx PRIVATE
-    "${MESA_NVK_DIR}/../include"
-  )
-
-  target_link_directories(dolphin-nx PRIVATE
-    "${MESA_NVK_DIR}/src/nouveau/vulkan"
-    "${MESA_NVK_DIR}/src/vulkan/util"
-    "${MESA_NVK_DIR}/src/nouveau/compiler"
-    "${MESA_NVK_DIR}/src/compiler/spirv"
-    "${MESA_NVK_DIR}/src/util"
-    "${MESA_NVK_DIR}/src/nouveau/nil"
-    "${MESA_NVK_DIR}/src/nouveau/mme"
-    "${MESA_NVK_DIR}/src/nouveau/winsys"
-    "${MESA_NVK_DIR}/src/nouveau/headers"
-    "${MESA_NVK_DIR}/src/compiler/nir"
-    "${MESA_NVK_DIR}/src/compiler"
-    "${MESA_NVK_DIR}/src/compiler/rust"
-    "${MESA_NVK_DIR}/src/util/blake3"
-    "${MESA_NVK_DIR}/src/c11/impl"
-  )
+  if(EXISTS "${MESA_NVK_DIR}/lib/libvulkan.a")
+    set(GBASTATION_NVK_LIBRARY "${MESA_NVK_DIR}/lib/libvulkan.a")
+    target_include_directories(dolphin-nx PRIVATE "${MESA_NVK_DIR}/include")
+  else()
+    set(GBASTATION_NVK_LIBRARY "${MESA_NVK_DIR}/src/nouveau/vulkan/libvulkan.a")
+    target_include_directories(dolphin-nx PRIVATE "${MESA_NVK_DIR}/../include")
+    target_link_directories(dolphin-nx PRIVATE
+      "${MESA_NVK_DIR}/src/nouveau/vulkan"
+      "${MESA_NVK_DIR}/src/vulkan/util"
+      "${MESA_NVK_DIR}/src/nouveau/compiler"
+      "${MESA_NVK_DIR}/src/compiler/spirv"
+      "${MESA_NVK_DIR}/src/util"
+      "${MESA_NVK_DIR}/src/nouveau/nil"
+      "${MESA_NVK_DIR}/src/nouveau/mme"
+      "${MESA_NVK_DIR}/src/nouveau/winsys"
+      "${MESA_NVK_DIR}/src/nouveau/headers"
+      "${MESA_NVK_DIR}/src/compiler/nir"
+      "${MESA_NVK_DIR}/src/compiler"
+      "${MESA_NVK_DIR}/src/compiler/rust"
+      "${MESA_NVK_DIR}/src/util/blake3"
+      "${MESA_NVK_DIR}/src/c11/impl"
+    )
+  endif()
 endif()
 
 # Core Dolphin libraries. videovulkan is linked explicitly so the overlay
@@ -92,9 +97,9 @@ target_link_libraries(dolphin-nx PRIVATE
 # NVK / Vulkan (static) — replaces OGL/EGL Mesa stack
 # Use Mesa's public loaderless libvulkan.a package instead of linking
 # libnvk.a and every support archive manually.
-if(DEFINED MESA_NVK_DIR)
+if(DEFINED GBASTATION_NVK_LIBRARY)
   target_link_libraries(dolphin-nx PRIVATE
-    ${MESA_NVK_DIR}/src/nouveau/vulkan/libvulkan.a
+    ${GBASTATION_NVK_LIBRARY}
   )
 endif()
 

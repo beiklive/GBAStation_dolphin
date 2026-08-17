@@ -1,0 +1,78 @@
+name: Build GBAStation Dolphin Switch core
+
+on:
+  push:
+    branches: [master, main]
+    tags: ['v*']
+    paths:
+      - 'Source/**'
+      - 'Externals/**'
+      - 'CMakeLists.txt'
+      - 'build_dolphin_standalone_nro.sh'
+      - '.github/workflows/build-switch.yml'
+  pull_request:
+    paths:
+      - 'Source/**'
+      - 'Externals/**'
+      - 'CMakeLists.txt'
+      - 'build_dolphin_standalone_nro.sh'
+      - '.github/workflows/build-switch.yml'
+  workflow_dispatch:
+
+jobs:
+  build-switch:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    container:
+      image: devkitpro/devkita64:latest
+    env:
+      HOME: /root
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Check out switchVK SDK build
+        run: git clone --depth 1 https://github.com/beiklive/switchVK.git ../switchVK
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ../switchVK/.ci-toolchain
+            ../switchVK/.ci-build/native-build
+            ../switchVK/.ci-build/native-prefix
+            ../switchVK/.ci-build/rust-build-std
+            ../switchVK/.ci-build/spirv-tools-source
+            ../switchVK/.ci-build/spirv-headers-source
+            ../switchVK/.ci-build/spirv-tools-build
+            ../switchVK/.ci-build/spirv-tools-prefix
+          key: dolphin-switchvk-mesa-26.1.4-v1
+
+      - name: Install switchVK dependencies
+        run: bash ../switchVK/ci/install-linux-deps.sh
+
+      - name: Build switchVK SDK
+        run: |
+          SWITCHVK_VARIANT=release \
+          SWITCHVK_PATCH_LIST=ci/release-patches.txt \
+          SWITCHVK_CI_BUILD_ROOT=.ci-build \
+          MESA_26_1_4_PACKAGE=.ci-build/nvk-switch-26.1.4 \
+            bash ci/build-sdk-linux.sh
+        working-directory: ../switchVK
+
+      - name: Build NRO
+        run: MESA_NVK_DIR=../switchVK/.ci-build/nvk-switch-26.1.4 ./build_dolphin_standalone_nro.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GBAStationDolphinStub
+          path: build_nx_standalone/GBAStationDolphinStub.nro
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build_nx_standalone/GBAStationDolphinStub.nro
