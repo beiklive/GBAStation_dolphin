@@ -13,6 +13,8 @@
 #include <cstring>
 #include <chrono>
 #include <dirent.h>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <sys/stat.h>
@@ -73,6 +75,65 @@ static std::atomic<u64> s_presented_frames{0};
 static std::thread s_state_load_thread;
 static std::atomic<bool> s_state_load_in_progress{false};
 
+static bool ReadLaunchJsonString(std::string_view text, const char* key, std::string& value)
+{
+  const std::string needle = std::string("\"") + key + "\"";
+  const size_t key_position = text.find(needle);
+  if (key_position == std::string_view::npos)
+    return false;
+
+  const size_t colon = text.find(':', key_position + needle.size());
+  const size_t quote = colon == std::string_view::npos ? std::string_view::npos :
+      text.find('"', colon + 1);
+  if (quote == std::string_view::npos)
+    return false;
+
+  value.clear();
+  bool escaped = false;
+  for (size_t index = quote + 1; index < text.size(); ++index)
+  {
+    const char character = text[index];
+    if (escaped)
+    {
+      value.push_back(character);
+      escaped = false;
+    }
+    else if (character == '\\')
+    {
+      escaped = true;
+    }
+    else if (character == '"')
+    {
+      return true;
+    }
+    else
+    {
+      value.push_back(character);
+    }
+  }
+  return false;
+}
+
+static std::optional<std::string> LoadGBAStationLaunchFile(const char* path)
+{
+  std::ifstream file(path);
+  if (!file)
+    return std::nullopt;
+
+  std::ostringstream stream;
+  stream << file.rdbuf();
+  const std::string json = stream.str();
+  std::string content_path;
+  static constexpr const char* kContentKeys[] = {
+      "contentPath", "content_path", "romPath", "rom", "path", "gamePath"};
+  for (const char* key : kContentKeys)
+  {
+    if (ReadLaunchJsonString(json, key, content_path) && !content_path.empty())
+      return content_path;
+  }
+  return std::nullopt;
+}
+
 static std::optional<std::string> GetLaunchRomPath(int argc, char* argv[])
 {
   std::optional<std::string> rom_path;
@@ -95,6 +156,16 @@ static std::optional<std::string> GetLaunchRomPath(int argc, char* argv[])
         s_return_nro = argv[++i];
       continue;
     }
+
+    if (arg == "--launch")
+    {
+      if (i + 1 < argc && argv[i + 1] != nullptr && argv[i + 1][0] != '\0')
+      {
+        if (const auto launch_path = LoadGBAStationLaunchFile(argv[++i]))
+          rom_path = *launch_path;
+      }
+      continue;
+    }
     if (arg == "--gbastation-session")
     {
       if (i + 1 < argc && argv[i + 1] != nullptr && argv[i + 1][0] != '\0')
@@ -106,6 +177,21 @@ static std::optional<std::string> GetLaunchRomPath(int argc, char* argv[])
 
     if (!rom_path)
       rom_path = std::string(arg);
+  }
+
+  if (!rom_path)
+  {
+    static constexpr const char* kLaunchFiles[] = {
+        "sdmc:/GBAStation/runtime/dolphin_launch.json",
+        "sdmc:/GBAStation/runtime/gc_launch.json",
+        "sdmc:/GBAStation/runtime/launch.json",
+        "sdmc:/GBAStation/launch.json",
+    };
+    for (const char* path : kLaunchFiles)
+    {
+      if ((rom_path = LoadGBAStationLaunchFile(path)))
+        break;
+    }
   }
 
   return rom_path;

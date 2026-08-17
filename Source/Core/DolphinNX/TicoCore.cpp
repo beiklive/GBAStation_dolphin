@@ -242,6 +242,36 @@ std::string TrimAscii(std::string_view input)
   return std::string(input.substr(start, end - start));
 }
 
+std::string DecodeGBAStationConfigValue(std::string_view input)
+{
+  std::string decoded = TrimAscii(input);
+  if (decoded.starts_with("i|") || decoded.starts_with("f|") || decoded.starts_with("s|"))
+    decoded.erase(0, 2);
+
+  std::string unescaped;
+  unescaped.reserve(decoded.size());
+  bool escaped = false;
+  for (const char character : decoded)
+  {
+    if (escaped)
+    {
+      unescaped.push_back(character);
+      escaped = false;
+    }
+    else if (character == '\\')
+    {
+      escaped = true;
+    }
+    else
+    {
+      unescaped.push_back(character);
+    }
+  }
+  if (escaped)
+    unescaped.push_back('\\');
+  return unescaped;
+}
+
 std::string ToLowerAscii(std::string_view input)
 {
   std::string lower;
@@ -744,13 +774,14 @@ private:
           {
             const std::string option = key.substr(std::string("core.dolphin.").size());
             if (!option.empty())
-              m_options[option] = trim(line.substr(equal + 1));
+              m_options[option] = DecodeGBAStationConfigValue(line.substr(equal + 1));
           }
           else if (key.rfind("dolphin.handle.", 0) == 0)
           {
             const std::string suffix = key.substr(std::string("dolphin.handle.").size());
             if (!suffix.empty())
-              m_options["gbastation_dolphin_" + suffix] = trim(line.substr(equal + 1));
+              m_options["gbastation_dolphin_" + suffix] =
+                  DecodeGBAStationConfigValue(line.substr(equal + 1));
           }
         }
         m_loaded_path = path;
