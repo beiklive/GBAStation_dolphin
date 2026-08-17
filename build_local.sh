@@ -61,6 +61,9 @@ if [[ ! -f "${SWITCH_NVK_ROOT:-}/lib/libvulkan.a" || ! -f "${SWITCH_NVK_ROOT:-}/
   echo "Missing switchVK SDK. Set SWITCH_NVK_ROOT to its SDK directory." >&2
   exit 1
 fi
+# CMake treats a relative static-library path as a -l argument. Canonicalize
+# the SDK location so both local invocations and CI can link libvulkan.a.
+SWITCH_NVK_ROOT="$(cd -- "$SWITCH_NVK_ROOT" && pwd -P)"
 
 export MESA_NVK_DIR="$SWITCH_NVK_ROOT"
 export CMAKE_BUILD_PARALLEL_LEVEL="$JOBS"
