@@ -34,7 +34,7 @@ jobs:
       # switchVK is private.  Set SWITCHVK_TOKEN to a fine-grained PAT with
       # read access to beiklive/switchVK; CORE_RELEASE_TOKEN is retained as a
       # convenient shared fallback for existing release automation.
-      SWITCHVK_TOKEN: ${{ secrets.SWITCHVK_TOKEN || secrets.CORE_RELEASE_TOKEN || github.token }}
+      SWITCHVK_TOKEN: ${{ secrets.SWITCHVK_READ_TOKEN || secrets.SWITCHVK_TOKEN || secrets.CORE_RELEASE_TOKEN || github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
