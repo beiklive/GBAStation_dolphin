@@ -9,6 +9,7 @@ on:
       - 'Externals/**'
       - 'CMakeLists.txt'
       - 'build_dolphin_standalone_nro.sh'
+      - 'build_local.sh'
       - '.github/workflows/build-switch.yml'
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - 'Externals/**'
       - 'CMakeLists.txt'
       - 'build_dolphin_standalone_nro.sh'
+      - 'build_local.sh'
       - '.github/workflows/build-switch.yml'
   workflow_dispatch:
 
@@ -67,7 +69,7 @@ jobs:
         working-directory: ../switchVK
 
       - name: Build NRO
-        run: MESA_NVK_DIR=../switchVK/.ci-build/nvk-switch-26.1.4 ./build_dolphin_standalone_nro.sh
+        run: SWITCH_NVK_ROOT=../switchVK/.ci-build/nvk-switch-26.1.4 ./build_local.sh -j 2
 
       - uses: actions/upload-artifact@v4
         with:

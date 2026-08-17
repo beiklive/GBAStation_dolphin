@@ -54,7 +54,7 @@ cmake -B "${BUILD_DIR}" "${SCRIPT_DIR}" \
   -DTICO_NRO_VERSION="${TICO_NRO_VERSION}" \
   -DCMAKE_BUILD_TYPE=Release
 
-cmake --build "${BUILD_DIR}" --target dolphin-nx -j"$(nproc)"
+cmake --build "${BUILD_DIR}" --target dolphin-nx -j"${CMAKE_BUILD_PARALLEL_LEVEL:-$(nproc)}"
 
 echo ""
 echo "=== Packaging NRO ==="
